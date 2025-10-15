@@ -1,0 +1,27 @@
+# Node.js dependencies
+node_modules/
+npm-debug.log
+yarn-error.log
+package-lock.json
+yarn.lock
+
+# Environment variables
+.env
+
+# Build output
+dist/
+build/
+
+# IDE / OS files
+.vscode/
+.idea/
+*.log
+.DS_Store
+
+# Temporary files
+tmp/
+*.swp
+
+backend/images/
+backend/overlays/
+github.txt

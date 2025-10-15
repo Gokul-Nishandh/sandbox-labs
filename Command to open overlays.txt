@@ -1,0 +1,20 @@
+Command to open overlays 
+NOde : 
+
+gokul@gokul-OMEN-by-HP-16-1-inch-Gaming-Laptop-PC:~/sandbox-labs/backend/overlays$ qemu-system-x86_64 \
+  -drive file=/home/gokul/sandbox-labs/backend/overlays/node_1.qcow2,format=qcow2 \
+  -m 2048 \
+  -net user,hostfwd=tcp::2225-:22 \
+  -net nic \
+  -vnc :1
+
+
+NOde 2: 
+gokul@gokul-OMEN-by-HP-16-1-inch-Gaming-Laptop-PC:~/sandbox-labs/backend/overlays$ qemu-system-x86_64 \
+  -drive file=/home/gokul/sandbox-labs/backend/overlays/node_2.qcow2,format=qcow2 \
+  -m 2048 \
+  -net user,hostfwd=tcp::2223-:22 \
+  -net nic \
+  -vnc :2
+
+

@@ -1,0 +1,116 @@
+Absolutely, Boss. Assuming your backend is running on **[http://localhost:3000](http://localhost:3000)**, here are the `curl` commands for testing each endpoint.
+
+---
+
+### **1️⃣ List all nodes**
+
+```bash
+curl -X GET http://localhost:3000/nodes
+```
+
+✅ Response example:
+
+```json
+[
+  {
+    "name": "node_1",
+    "image": "./overlays/node_1.qcow2",
+    "ip": "192.168.56.11",
+    "status": "stopped",
+    "guacamoleUrl": "http://localhost:8080/guacamole/#/client/node_1"
+  }
+]
+```
+
+---
+
+### **2️⃣ Create a new node (overlay)**
+
+```bash
+curl -X POST http://localhost:3000/nodes
+```
+
+✅ Response example:
+
+```json
+{
+  "name": "node_3",
+  "image": "./overlays/node_3.qcow2",
+  "ip": "192.168.56.13"
+}
+```
+
+> This automatically adds the overlay and updates `inventory.json`.
+
+---
+
+### **3️⃣ Run a node (boot VM)**
+
+```bash
+curl -X POST http://localhost:3000/nodes/node_1/run
+```
+
+✅ Response example:
+
+```json
+{
+  "success": true,
+  "hostSSHPort": 2221,
+  "vncPort": 5901,
+  "guacamoleUrl": "http://localhost:8080/guacamole/#/client/node_1"
+}
+```
+
+> The VM will now be running in the background.
+
+---
+
+### **4️⃣ Stop a node**
+
+```bash
+curl -X POST http://localhost:3000/nodes/node_1/stop
+```
+
+✅ Response example:
+
+```json
+{
+  "success": true
+}
+```
+
+> Stops the VM by killing its process.
+
+---
+
+### **5️⃣ Wipe a node (delete overlay and recreate)**
+
+```bash
+curl -X POST http://localhost:3000/nodes/node_1/wipe
+```
+
+✅ Response example:
+
+```json
+{
+  "success": true
+}
+```
+
+> The overlay file is deleted and recreated from the base image.
+
+---
+
+### **6️⃣ Optional: Check if VNC port is listening**
+
+```bash
+nc -zv 127.0.0.1 5901
+```
+
+> Confirms that the VM’s VNC is up.
+
+---
+
+If you want, I can give you a **single shell script** that runs all these curl commands sequentially so you can test your backend in one go. This is very handy while developing.
+
+Do you want me to do that?

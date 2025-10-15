@@ -1,0 +1,7 @@
+docker ps
+docker logs guacamoledb
+docker run --name guacamole-server -d guacamole/guacd
+docker logs --tail 10 guacamole-server
+docker ps
+docker run --name guacamole-client --link guacamole-server:guacd --link guacamoledb:mysql -e MYSQL_DATABASE=guacdb -e MYSQL_USER=guacadmin -e MYSQL_PASSWORD=password -d -p 80:8080 guacamole/guacamole
+docker ps
