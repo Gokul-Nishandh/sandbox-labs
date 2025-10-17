@@ -1,0 +1,8 @@
+nc -vz 192.168.207.6 5901
+→ Connection succeeded!
+
+
+docker exec -it guacd sh
+/ $ nc -vz localhost 5901
+Connection to localhost (127.0.0.1) 5901 port [tcp/*] succeeded!
+/ $ 

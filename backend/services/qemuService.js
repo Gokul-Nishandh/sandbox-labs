@@ -18,7 +18,7 @@ exports.runVM = (nodeName, overlayPath) => {
         const nodeId = parseInt(nodeName.split('_')[1]);
         const hostSSHPort = 2220 + nodeId;
         const vncDisplay = nodeId;
-        const vncHost = '127.0.0.1';
+        const vncHost = '0.0.0.0';
 
         const cmd = `qemu-system-x86_64 \
             -drive file=${overlayPath},format=qcow2 \

@@ -1,0 +1,4 @@
+Container ip : 172.20.0.0/16
+HOst wifi ip: 192.168.207.6
+VMS INterface : 0.0.0.0
+POrts : 5900 + node_number
