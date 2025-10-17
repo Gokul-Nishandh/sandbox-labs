@@ -6,3 +6,14 @@ docker exec -it guacd sh
 / $ nc -vz localhost 5901
 Connection to localhost (127.0.0.1) 5901 port [tcp/*] succeeded!
 / $ 
+
+
+docker logs guacd
+
+
+
+ps aux | grep qemu
+
+sudo kill -9 <pid>
+
+docker exec -it guac-db mysql -u guacamole_user -p

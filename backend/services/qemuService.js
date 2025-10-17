@@ -37,6 +37,7 @@ exports.runVM = (nodeName, overlayPath) => {
                 const pid = parseInt(stdout2.split('\n')[0]);
                 runningVMs[nodeName] = { pid };
                 resolve({ hostSSHPort, vncPort: 5900 + vncDisplay });
+
             });
         });
     });

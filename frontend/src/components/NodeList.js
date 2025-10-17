@@ -15,7 +15,7 @@ export default function NodeList() {
     try {
       const res = await axios.get(`${API_BASE}/nodes`);
       const fetchedNodes = res.data;
-
+      console.log(nodes)
       setNodes(fetchedNodes);
 
       // Initialize timers for new nodes
@@ -175,10 +175,10 @@ export default function NodeList() {
                       Wipe
                     </button>
                     <button
-                      onClick={() => window.open(node.guacamoleUrl || '#', '_blank')}
+                      onClick={() => window.open(node.guacamoleUrl, '_blank')}
                       className="px-3 py-1 rounded bg-blue-500 hover:bg-blue-600 text-white transition duration-200 shadow"
                     >
-                      Open
+                      Open Console
                     </button>
                   </td>
                 </tr>

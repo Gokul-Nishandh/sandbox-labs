@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const qemuService = require('../services/qemuService');
-
+const guacamoleService = require('../services/guacamoleService');
 const inventoryPath = path.join(__dirname, '../inventory.json');
 
 // Utility: Read inventory
@@ -16,14 +16,24 @@ function writeInventory(nodes) {
     fs.writeFileSync(inventoryPath, JSON.stringify({ nodes }, null, 2));
 }
 
-// List nodes with status
-exports.listNodes = (req, res) => {
-    const nodes = readInventory().map(node => ({
-        ...node,
-        status: qemuService.isRunning(node.name) ? 'running' : 'stopped',
-        guacamoleUrl: `http://localhost:8080/guacamole/#/client/${node.name}`
-    }));
-    res.json(nodes);
+exports.listNodes = async (req, res) => {
+    const nodes = readInventory();
+    const nodesWithStatus = await Promise.all(
+        nodes.map(async (node) => {
+            const status = qemuService.isRunning(node.name) ? 'running' : 'stopped';
+
+            // fetch actual connection id from DB
+            let guacUrl = null;
+            if (status === 'running') {
+                const connectionId = await guacamoleService.getConnectionId(node.name);
+                if (connectionId) guacUrl = `http://localhost:8080/guacamole/#/client/${connectionId}`;
+            }
+
+            return { ...node, status, guacamoleUrl: guacUrl };
+        })
+    );
+
+    res.json(nodesWithStatus);
 };
 
 // Create a new node
@@ -43,7 +53,6 @@ exports.createNode = async (req, res) => {
 
         nodes.push(newNode);
         writeInventory(nodes);
-
         res.json(newNode);
     } catch (err) {
         console.error('Error creating node:', err);
@@ -51,7 +60,7 @@ exports.createNode = async (req, res) => {
     }
 };
 
-// Start a node
+
 exports.runNode = async (req, res) => {
     const nodeName = req.params.id;
     const node = readInventory().find(n => n.name === nodeName);
@@ -59,11 +68,18 @@ exports.runNode = async (req, res) => {
 
     try {
         const result = await qemuService.runVM(node.name, path.resolve(node.image));
+
+        // Map correct host IP + VNC port for Guacamole
+        const hostIP = node.ip;
+        const connectionId = await guacamoleService.createConnection(node.name, hostIP, result.vncPort);
+
+        const guacUrl = `http://localhost:8080/guacamole/#/client/${connectionId}`;
+        console.log("From runNode",guacUrl);
         res.json({
             success: true,
             hostSSHPort: result.hostSSHPort,
             vncPort: result.vncPort,
-            guacamoleUrl: `http://localhost:8080/guacamole/#/client/${node.name}`
+            guacamoleUrl: guacUrl
         });
     } catch (err) {
         console.error(err);
@@ -71,14 +87,17 @@ exports.runNode = async (req, res) => {
     }
 };
 
-// Stop a node
 exports.stopNode = async (req, res) => {
     const nodeName = req.params.id;
     const node = readInventory().find(n => n.name === nodeName);
     if (!node) return res.status(404).json({ error: 'Node not found' });
 
     try {
-        await qemuService.stopVM(node.name);
+        if (qemuService.isRunning(node.name)) {
+            await qemuService.stopVM(node.name);
+        } else {
+            console.warn(`VM ${node.name} is not running`);
+        }
         res.json({ success: true });
     } catch (err) {
         console.error(err);
