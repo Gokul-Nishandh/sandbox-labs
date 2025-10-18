@@ -1,4 +1,3 @@
-Here’s a polished and fully updated README for your **Sandbox-Labs** project with the Guacamole integration instructions included:
 
 ---
 
@@ -194,6 +193,4 @@ qemu-system-x86_64 \
 
 ---
 
-If you want, I can also **update your frontend instructions** to show **automatic Guacamole IP and port assignment per node**, so clicking “Open Console” always works seamlessly without manual IP setup. This would make the lab fully plug-and-play.
 
-Do you want me to do that too?
