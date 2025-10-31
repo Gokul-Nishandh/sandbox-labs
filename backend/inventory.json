@@ -9,6 +9,11 @@
       "name": "node_2",
       "image": "/home/gokul/sandbox-labs/backend/overlays/node_2.qcow2",
       "ip": "192.168.56.12"
+    },
+    {
+      "name": "node_3",
+      "image": "/home/gokul/sandbox-labs/backend/overlays/node_3.qcow2",
+      "ip": "192.168.56.13"
     }
   ]
 }
