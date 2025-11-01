@@ -18,103 +18,34 @@ sudo kill -9 <pid>
 
 docker exec -it guac-db mysql -u guacamole_user -p
 
-Perfect — your logs are **super helpful**, and now we can pinpoint the issue exactly.
-Everything (Docker, DB, Guacamole web, authentication) is fine — the only problem is **Guacd cannot reach your VNC servers at `192.168.56.11` and `192.168.56.12`**.
-
----
-
-### 🧠 Root Cause
-
-Your database currently says:
-
-```
-node_1 → hostname = 192.168.56.11
-node_2 → hostname = 192.168.56.12
-```
-
-But your **`guacd` container** lives in the **Docker bridge network (172.19.0.0/16)**.
-That means `guacd` can **reach `172.19.0.1` (the host)**, but **not `192.168.56.x`**, which are likely your host-only or VirtualBox private network IPs.
-
-So even though your VNC servers are reachable from your host, they’re invisible to the container.
-
----
-
-### ✅ Fix: Change VNC Hostnames in DB to `172.19.0.1`
-
-Run this command to update both connections to use the host IP reachable from Docker:
-
-```bash
+Docker commands to check the connections
 docker exec -it guac-db mysql -uguacamole_user -pguacamole guacamole_db -e "
-UPDATE guacamole_connection_parameter
-SET parameter_value='172.19.0.1'
-WHERE parameter_name='hostname';
+SELECT c.connection_id, c.connection_name, c.protocol, p.parameter_name, p.parameter_value
+FROM guacamole_connection c
+JOIN guacamole_connection_parameter p
+ON c.connection_id = p.connection_id
+ORDER BY c.connection_id;
 "
-```
+Code to create connection 
 
-Then verify:
-
-```bash
-docker exec -it guac-db mysql -uguacamole_user -pguacamole guacamole_db -e "
-SELECT connection_id, parameter_name, parameter_value
-FROM guacamole_connection_parameter
-WHERE parameter_name='hostname';
-"
-```
-
-✅ Expected output:
-
-```
-| connection_id | parameter_name | parameter_value |
-|---------------|----------------|-----------------|
-| 1             | hostname       | 172.19.0.1      |
-| 2             | hostname       | 172.19.0.1      |
-```
-
----
-
-### ⚙️ Restart and Test
-
-1. Restart the Guacamole web app to reload config:
-
-   ```bash
-   docker restart guac
-   ```
-
-2. Wait ~10 seconds, then open
-   👉 **[http://localhost:8080/guacamole](http://localhost:8080/guacamole)**
-
-3. Log in as `guacadmin` and try both:
-
-   * **node_1** → should now connect to `172.19.0.1:5901`
-   * **node_2** → should now connect to `172.19.0.1:5902`
-
----
-
-### 🧩 Optional Verification (Before Trying GUI)
-
-You can confirm from inside guacd that these now work:
-
-```bash
+# 1. Inside guacd
 docker exec -it guacd sh
-nc -vz 172.19.0.1 5901
-nc -vz 172.19.0.1 5902
+nc -vz host.docker.internal 5901
+nc -vz host.docker.internal 5902
+nc -vz host.docker.internal 5903
 exit
-```
 
-✅ Both should succeed (you already confirmed earlier they do).
+# 2. From host
+nc -vz 172.17.0.1 5902
 
----
+# 3. Temporarily fix Docker NAT/firewall
+sudo iptables -I DOCKER-USER -p tcp --dport 5902 -j ACCEPT
+sudo iptables -I INPUT -p tcp --dport 5902 -j ACCEPT
 
-### 🚀 Summary
+# 4. Re-test inside container
+docker exec -it guacd sh
+nc -vz host.docker.internal 5902
+exit
 
-| Step | What it Does                 | Command                                     |
-| ---- | ---------------------------- | ------------------------------------------- |
-| 1    | Update hostname in DB        | `UPDATE guacamole_connection_parameter ...` |
-| 2    | Restart guac container       | `docker restart guac`                       |
-| 3    | Test GUI again               | visit `http://localhost:8080/guacamole`     |
-| 4    | (Optional) Verify from guacd | `nc -vz 172.19.0.1 5901`                    |
-
----
-
-Once you do this, Guacamole should finally connect properly 🎯
-Would you like me to give you a **single shell script** (`debug_guac.sh`) that runs all the key checks (DB values, network, nc test, log summary) in one go next time?
+# 5. Watch guacd logs
+docker logs -f guacd

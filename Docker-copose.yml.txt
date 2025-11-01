@@ -5,6 +5,8 @@ services:
     restart: unless-stopped
     networks:
       - guacnet
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   db:
     image: mysql:9.4
@@ -15,6 +17,10 @@ services:
       MYSQL_DATABASE: guacamole_db
       MYSQL_USER: guacamole_user
       MYSQL_PASSWORD: guacamole
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./init:/docker-entrypoint-initdb.d
     networks:
       - guacnet
 
@@ -35,6 +41,8 @@ services:
       - "8080:8080"
     networks:
       - guacnet
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
 networks:
   guacnet:
