@@ -5,20 +5,27 @@ const guacamoleService = require('../services/guacamoleService');
 
 // ✅ Correct inventory path
 const inventoryPath = path.join(__dirname, '../inventory.json');
-
-// --------------------------------------------------------
-// Utility Functions
-// --------------------------------------------------------
+// ✅ Utility functions for inventory management
 function readInventory() {
-  if (!fs.existsSync(inventoryPath)) return [];
-  return JSON.parse(fs.readFileSync(inventoryPath, 'utf8')).nodes || [];
+  if (!fs.existsSync(inventoryPath)) {
+    fs.writeFileSync(inventoryPath, JSON.stringify({ nodes: [] }, null, 2));
+    return [];
+  }
+
+  const data = fs.readFileSync(inventoryPath, 'utf-8');
+  const parsed = JSON.parse(data);
+  return parsed.nodes || [];
 }
 
 function writeInventory(nodes) {
-  fs.writeFileSync(inventoryPath, JSON.stringify({ nodes }, null, 2));
+  const data = { nodes };
+  fs.writeFileSync(inventoryPath, JSON.stringify(data, null, 2));
 }
 
-// --------------------------------------------------------
+
+
+
+//--------------------------------------------------------
 // ✅ Reset All Nodes to "stopped" on Backend Startup
 // --------------------------------------------------------
 function resetAllNodesToStopped() {
@@ -146,14 +153,14 @@ exports.wipeAllNodes = async (req, res) => {
 exports.createRouter = async (req, res) => {
   try {
     const nodes = readInventory();
-    const routerName = 'router_1';
+    const routerName = "router_1";
     const overlay = await qemuService.createRouterOverlay(routerName);
 
     const routerNode = {
       name: routerName,
       image: overlay.overlayPath,
-      ip: '192.168.1.1',
-      status: 'stopped'
+      ip: "192.168.1.1",
+      status: "stopped",
     };
 
     nodes.push(routerNode);
@@ -164,23 +171,31 @@ exports.createRouter = async (req, res) => {
   }
 };
 
+// ✅ Fixed version — returns guacamoleUrl from qemuService.runRouter
 exports.runRouter = async (req, res) => {
   try {
-    const routerName = 'router_1';
-    const node = readInventory().find(n => n.name === routerName);
-    if (!node) throw new Error('Router not found');
+    const routerName = "router_1";
+    const node = readInventory().find((n) => n.name === routerName);
+    if (!node) throw new Error("Router not found");
 
-    // Run router VM
     const result = await qemuService.runRouter(routerName, path.resolve(node.image));
-    const telnetPort = result.telnetPort || 5000;
 
-    // Create TELNET connection in Guacamole
-    const connectionId = await guacamoleService.createConnection(routerName, node.ip, telnetPort, 'telnet');
+    if (!result.success) throw new Error(result.error);
+
+    // Save Guacamole connection to inventory
+    const nodes = readInventory();
+    const routerNode = nodes.find(n => n.name === routerName);
+    if (routerNode) {
+      routerNode.status = "running";
+      routerNode.telnetPort = result.telnetPort;
+      routerNode.guacamoleUrl = result.guacamoleUrl;
+    }
+    writeInventory(nodes);
 
     res.json({
       success: true,
-      telnetPort,
-      guacamoleUrl: `http://localhost:8080/guacamole/#/client/${connectionId}`
+      telnetPort: result.telnetPort,
+      guacamoleUrl: result.guacamoleUrl,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

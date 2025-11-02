@@ -25,12 +25,6 @@
       "status": "stopped"
     },
     {
-      "name": "router_1",
-      "image": "/home/gokul/sandbox-labs/backend/overlays/router_1.qcow2",
-      "ip": "192.168.1.1",
-      "status": "stopped"
-    },
-    {
       "name": "node_6",
       "image": "/home/gokul/sandbox-labs/backend/overlays/node_6.qcow2",
       "ip": "192.168.56.16",
@@ -40,7 +34,7 @@
       "name": "node_7",
       "image": "/home/gokul/sandbox-labs/backend/overlays/node_7.qcow2",
       "ip": "192.168.56.17",
-      "status": "running"
+      "status": "stopped"
     }
   ]
 }

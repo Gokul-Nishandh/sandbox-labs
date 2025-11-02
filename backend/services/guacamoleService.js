@@ -11,9 +11,12 @@ const db = mysql.createPool({
   password: process.env.DB_PASS || 'guacamole',
   database: process.env.DB_NAME || 'guacamole_db',
   waitForConnections: true,
-  connectionLimit: 10
+  connectionLimit: 10,
 });
 
+/**
+ * Ensure all Guacamole hostname parameters are synced to the fixed Docker bridge IP.
+ */
 async function ensureCorrectHostname() {
   try {
     await db.query(
@@ -39,29 +42,52 @@ exports.createConnection = async (nodeName, hostIP, port, protocol = 'vnc') => {
   try {
     await ensureCorrectHostname();
 
-    // Check if this node already exists
+
+    // 🧠 Force correct protocol and port for routers
+    if (nodeName.startsWith('router')) {
+      protocol = 'telnet';
+      port = 5950; // ✅ Always fixed port
+    }
+
+    console.log(`🧩 DEBUG: Creating/Updating ${nodeName} on port ${port}, protocol ${protocol}`);
+
+    // Check if the connection already exists
     const [existing] = await db.query(
       'SELECT connection_id FROM guacamole_connection WHERE connection_name = ?',
       [nodeName]
     );
 
     let connectionId;
+
     if (existing.length > 0) {
       connectionId = existing[0].connection_id;
 
-      // Just update the port if already exists
-      await db.query(
+      // ✅ Ensure correct port update or insert if missing
+      const [updateResult] = await db.query(
         `UPDATE guacamole_connection_parameter
          SET parameter_value = ?
          WHERE connection_id = ? AND parameter_name = 'port'`,
         [String(port), connectionId]
       );
 
-      console.log(`🔄 Updated ${nodeName}: ${FIXED_DOCKER_HOST_IP}:${port}`);
+      if (updateResult.affectedRows === 0) {
+        await db.query(
+          `INSERT INTO guacamole_connection_parameter (connection_id, parameter_name, parameter_value)
+           VALUES (?, 'port', ?)`,
+          [connectionId, String(port)]
+        );
+        console.log(`🆕 Inserted missing port for ${nodeName}`);
+      } else {
+        console.log(`🔄 Updated ${nodeName} port → ${port}`);
+      }
+
+      console.log(`✅ Existing ${nodeName} updated: ${FIXED_DOCKER_HOST_IP}:${port}`);
       return connectionId;
     }
 
-    // Otherwise create new entry
+    // ------------------------------------------------------
+    // 🆕 Create new Guacamole connection if not exists
+    // ------------------------------------------------------
     const [insert] = await db.query(
       `INSERT INTO guacamole_connection (connection_name, protocol, max_connections, max_connections_per_user)
        VALUES (?, ?, 5, 5)`,
@@ -70,21 +96,21 @@ exports.createConnection = async (nodeName, hostIP, port, protocol = 'vnc') => {
 
     connectionId = insert.insertId;
 
-    // Common parameters (VNC or Telnet)
+    // Parameters depending on protocol
     const params =
       protocol === 'telnet'
         ? [
             ['hostname', FIXED_DOCKER_HOST_IP],
-            ['port', String(port)]
+            ['port', String(port)],
           ]
         : [
             ['hostname', FIXED_DOCKER_HOST_IP],
             ['port', String(port)],
             ['color-depth', '24'],
-            ['cursor', 'local']
+            ['cursor', 'local'],
           ];
 
-    // Insert connection parameters
+    // Insert parameters
     for (const [name, value] of params) {
       await db.query(
         `INSERT INTO guacamole_connection_parameter (connection_id, parameter_name, parameter_value)
@@ -93,14 +119,25 @@ exports.createConnection = async (nodeName, hostIP, port, protocol = 'vnc') => {
       );
     }
 
-    // Grant guacadmin access
+    console.log(`🧩 DEBUG: Creating/Updating ${nodeName} on port ${port}, protocol ${protocol}`);
+
+
+    // Give guacadmin READ access
     await db.query(
       `INSERT INTO guacamole_connection_permission (entity_id, connection_id, permission)
        VALUES ((SELECT entity_id FROM guacamole_entity WHERE name='guacadmin'), ?, 'READ')`,
       [connectionId]
     );
 
-    console.log(`✅ Created ${nodeName}: ${FIXED_DOCKER_HOST_IP}:${port}`);
+    console.log(`✅ Created ${nodeName}: ${FIXED_DOCKER_HOST_IP}:${port} (${protocol})`);
+
+    // Debug print for verification
+    const [rows] = await db.query(
+      `SELECT parameter_name, parameter_value FROM guacamole_connection_parameter WHERE connection_id = ?`,
+      [connectionId]
+    );
+    console.log('📋 Final parameters for', nodeName, rows);
+
     return connectionId;
   } catch (err) {
     console.error(`❌ Error creating connection for ${nodeName}:`, err.message);
@@ -108,6 +145,9 @@ exports.createConnection = async (nodeName, hostIP, port, protocol = 'vnc') => {
   }
 };
 
+/**
+ * Delete a Guacamole connection by name.
+ */
 exports.deleteConnection = async (nodeName) => {
   try {
     await db.query('DELETE FROM guacamole_connection WHERE connection_name = ?', [nodeName]);
@@ -117,6 +157,9 @@ exports.deleteConnection = async (nodeName) => {
   }
 };
 
+/**
+ * Get a connection_id by name.
+ */
 exports.getConnectionId = async (nodeName) => {
   const [rows] = await db.query(
     'SELECT connection_id FROM guacamole_connection WHERE connection_name = ?',

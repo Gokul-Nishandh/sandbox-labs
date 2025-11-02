@@ -1,130 +1,174 @@
-const path = require('path');
-const fs = require('fs');
-const { execSync, exec } = require('child_process');
+const path = require("path");
+const fs = require("fs");
+const { execSync, exec } = require("child_process");
+const guacamoleService = require("./guacamoleService");
 
-// --- PATHS ---
-const IMAGE_DIR = path.join(__dirname, '../images');
-const OVERLAY_DIR = path.join(__dirname, '../overlays');
-const INVENTORY_PATH = path.join(__dirname, '../inventory.json');
+// --- Directories and paths ---
+const IMAGE_DIR = path.join(__dirname, "../images");
+const OVERLAY_DIR = path.join(__dirname, "../overlays");
+const INVENTORY_PATH = path.join(__dirname, "../inventory.json");
 
-const BASE_IMAGE_PATH = path.join(IMAGE_DIR, 'base2.qcow2');
-const ROUTER_IMAGE_PATH = path.join(IMAGE_DIR, 'router_fixed.qcow2');
+const BASE_IMAGE_PATH = path.join(IMAGE_DIR, "base2.qcow2");
+const ROUTER_IMAGE_PATH = path.join(IMAGE_DIR, "router.qcow2");
 
-// Ensure overlay directory exists
 if (!fs.existsSync(OVERLAY_DIR)) {
   fs.mkdirSync(OVERLAY_DIR, { recursive: true });
-  console.log('📂 Created overlays directory');
+  console.log("📂 Created overlays directory");
 }
 
-// --- Utility: Free VNC Port ---
+// =======================================================
+// 🔧 Utility Functions
+// =======================================================
+
+// --- Find a free VNC port ---
 function getRandomPort(base = 5900) {
   for (let i = 1; i < 100; i++) {
     const port = base + i;
     try {
       execSync(`lsof -i:${port}`);
     } catch {
-      return port; // free port
+      return port; // Free port found
     }
   }
-  throw new Error('No free VNC ports available!');
+  throw new Error("❌ No free VNC ports available!");
 }
 
-// --- Utility: Load/Save inventory ---
+// --- Load / Save Inventory ---
 function loadInventory() {
   if (!fs.existsSync(INVENTORY_PATH)) {
-    console.warn('⚠️ inventory.json not found. Creating empty one.');
     fs.writeFileSync(INVENTORY_PATH, JSON.stringify({ nodes: [] }, null, 2));
     return { nodes: [] };
   }
-  return JSON.parse(fs.readFileSync(INVENTORY_PATH, 'utf-8'));
+  return JSON.parse(fs.readFileSync(INVENTORY_PATH, "utf-8"));
 }
 
 function saveInventory(data) {
   fs.writeFileSync(INVENTORY_PATH, JSON.stringify(data, null, 2));
 }
 
+// --- Create TAP Interfaces Automatically ---
+function ensureTapInterface(tapName) {
+  try {
+    const existing = execSync(`ip link show ${tapName}`).toString();
+    if (existing.includes(tapName)) return; // already exists
+  } catch {
+    console.log(`🧩 Creating TAP interface: ${tapName}`);
+    execSync(`sudo ip tuntap add dev ${tapName} mode tap`);
+    execSync(`sudo ip link set ${tapName} up`);
+  }
+}
+
+// --- Build dynamic network arguments ---
+function buildNetArgs(nodeName, netCount = 1) {
+  let args = "";
+  for (let i = 0; i < netCount; i++) {
+    const tapName = nodeName.startsWith("router")
+      ? `tap-${nodeName}g${i}`
+      : `tap-${nodeName}`;
+    ensureTapInterface(tapName);
+    args += ` -netdev tap,id=net${i},ifname=${tapName},script=no,downscript=no -device e1000,netdev=net${i}`;
+  }
+  return args;
+}
+
 // =======================================================
-// ✅ CREATE OVERLAYS
+// 🧱 Overlay Creation
 // =======================================================
 
-// Normal node overlay
 exports.createOverlay = async (nodeName) => {
   const overlayPath = path.join(OVERLAY_DIR, `${nodeName}.qcow2`);
-
-  // Safety: delete stale overlay if corrupted
-  if (fs.existsSync(overlayPath) && fs.statSync(overlayPath).size === 0) {
-    fs.unlinkSync(overlayPath);
-    console.log(`🧹 Removed empty overlay: ${overlayPath}`);
-  }
-
   const cmd = `qemu-img create -f qcow2 -b ${BASE_IMAGE_PATH} -F qcow2 ${overlayPath}`;
   execSync(cmd);
   console.log(`✅ Overlay created for ${nodeName}`);
   return { overlayPath };
 };
 
-// Router overlay
 exports.createRouterOverlay = async (routerName) => {
   const overlayPath = path.join(OVERLAY_DIR, `${routerName}.qcow2`);
-  if (fs.existsSync(overlayPath)) {
-    console.log(`ℹ️ Router overlay already exists for ${routerName}`);
-    return { overlayPath };
+  if (!fs.existsSync(overlayPath)) {
+    execSync(`qemu-img create -f qcow2 -b ${ROUTER_IMAGE_PATH} -F qcow2 ${overlayPath}`);
+    console.log(`✅ Router overlay created for ${routerName}`);
   }
-
-  execSync(`qemu-img create -f qcow2 -b ${ROUTER_IMAGE_PATH} -F qcow2 ${overlayPath}`);
-  console.log(`✅ Router overlay created for ${routerName}`);
   return { overlayPath };
 };
 
 // =======================================================
-// ✅ RUN VMs
+// 🚀 Dynamic VM / Router Launcher
 // =======================================================
 
-// Normal VM
-exports.runVM = async (nodeName, imagePath) => {
-  const vncPort = getRandomPort();
-  const nodeNum = parseInt(nodeName.split('_')[1]) || 1;
-  const hostSSHPort = 2200 + nodeNum;
+exports.runDynamicVM = async (nodeName) => {
+  try {
+    const overlayPath = path.join(OVERLAY_DIR, `${nodeName}.qcow2`);
+    if (!fs.existsSync(overlayPath)) {
+      throw new Error(`Overlay not found: ${overlayPath}`);
+    }
 
-  const cmd = `qemu-system-x86_64 -hda ${imagePath} -m 1024 -enable-kvm \
-    -net nic -net user,hostfwd=tcp::${hostSSHPort}-:22 \
-    -vnc :${vncPort - 5900} -daemonize`;
+    const isRouter = nodeName.startsWith("router");
+    const netCount = isRouter ? 2 : 1;
+    const netArgs = buildNetArgs(nodeName, netCount);
+    const vncPort = getRandomPort(5900) - 5900; // :1, :2, etc.
+    const telnetPort = isRouter ? 5950 : null;
 
-  execSync(cmd);
-  console.log(`🚀 ${nodeName} started → VNC :${vncPort - 5900}, SSH ${hostSSHPort}`);
+    let cmd = `qemu-system-x86_64 \
+      -name ${nodeName} \
+      -hda ${overlayPath} \
+      -m 1024 \
+      -enable-kvm \
+      -cpu host \
+      ${netArgs} \
+      -vnc :${vncPort} \
+      -daemonize`;
 
-  // Update inventory
-  const inventory = loadInventory();
-  const node = inventory.nodes.find((n) => n.name === nodeName);
-  if (node) node.status = 'running';
-  saveInventory(inventory);
+    if (isRouter) {
+      cmd += ` -serial telnet:0.0.0.0:${telnetPort},server,nowait`;
+    }
 
-  return { hostSSHPort, vncPort };
+    console.log(`🚀 Launching ${isRouter ? "Router" : "VM"} → ${cmd}`);
+    execSync(cmd);
+
+    // 🗂️ Update inventory
+    const inventory = loadInventory();
+    const node = inventory.nodes.find((n) => n.name === nodeName);
+    if (node) {
+      node.status = "running";
+      node.vncPort = 5900 + vncPort;
+      if (isRouter) node.telnetPort = telnetPort;
+    }
+    saveInventory(inventory);
+
+    // 🌐 Guacamole integration
+    const hostIP = "172.19.0.1";
+    let connectionId = null;
+    if (isRouter) {
+      connectionId = await guacamoleService.createConnection(
+        nodeName,
+        hostIP,
+        telnetPort,
+        "telnet"
+      );
+    } else {
+      connectionId = await guacamoleService.createConnection(
+        nodeName,
+        hostIP,
+        5900 + vncPort,
+        "vnc"
+      );
+    }
+
+    const guacUrl = `http://localhost:8080/guacamole/#/client/${connectionId}`;
+    console.log(`🌐 Guacamole URL: ${guacUrl}`);
+
+    return { success: true, vncPort, telnetPort, guacUrl };
+  } catch (err) {
+    console.error(`❌ Failed to start ${nodeName}:`, err.message);
+    return { success: false, error: err.message };
+  }
 };
 
-// Router VM
-exports.runRouter = async (routerName, imagePath) => {
-  const vncPort = getRandomPort(5950);
-  const cmd = `qemu-system-x86_64 -hda ${imagePath} -m 2048 -smp 2 -enable-kvm \
-    -net nic -net user \
-    -vnc :${vncPort - 5900} -daemonize`;
-
-  execSync(cmd);
-  console.log(`🚀 Router ${routerName} started → VNC :${vncPort - 5900}`);
-
-  const inventory = loadInventory();
-  const node = inventory.nodes.find((n) => n.name === routerName);
-  if (node) node.status = 'running';
-  saveInventory(inventory);
-
-  return { vncPort };
-};
-
 // =======================================================
-// ✅ STOP / WIPE
+// 🛑 Stop / Wipe Functions
 // =======================================================
 
-// Stop VM safely
 exports.stopVM = async (nodeName) => {
   return new Promise((resolve) => {
     exec(`pgrep -f "${nodeName}"`, (err, stdout) => {
@@ -132,7 +176,7 @@ exports.stopVM = async (nodeName) => {
         console.log(`ℹ️ No active process found for ${nodeName}. Already stopped.`);
         const inventory = loadInventory();
         const node = inventory.nodes.find((n) => n.name === nodeName);
-        if (node) node.status = 'stopped';
+        if (node) node.status = "stopped";
         saveInventory(inventory);
         return resolve();
       }
@@ -146,7 +190,7 @@ exports.stopVM = async (nodeName) => {
 
         const inventory = loadInventory();
         const node = inventory.nodes.find((n) => n.name === nodeName);
-        if (node) node.status = 'stopped';
+        if (node) node.status = "stopped";
         saveInventory(inventory);
 
         resolve();
@@ -155,7 +199,6 @@ exports.stopVM = async (nodeName) => {
   });
 };
 
-// Wipe + recreate overlay
 exports.wipeOverlay = async (nodeName) => {
   try {
     await exports.stopVM(nodeName);
@@ -166,7 +209,7 @@ exports.wipeOverlay = async (nodeName) => {
       console.log(`🧹 Deleted overlay for ${nodeName}`);
     }
 
-    if (nodeName.startsWith('router')) {
+    if (nodeName.startsWith("router")) {
       await exports.createRouterOverlay(nodeName);
     } else {
       await exports.createOverlay(nodeName);
@@ -174,7 +217,7 @@ exports.wipeOverlay = async (nodeName) => {
 
     const inventory = loadInventory();
     const node = inventory.nodes.find((n) => n.name === nodeName);
-    if (node) node.status = 'stopped';
+    if (node) node.status = "stopped";
     saveInventory(inventory);
 
     console.log(`🔁 ${nodeName} reset successfully`);
@@ -183,26 +226,25 @@ exports.wipeOverlay = async (nodeName) => {
   }
 };
 
+// =======================================================
+// ⚙️ Init and Status
+// =======================================================
+
 exports.initInventory = () => {
   const inventory = loadInventory();
 
-  // 🧹 Kill any leftover QEMU processes to ensure a clean start
   try {
-    require('child_process').execSync('pkill -f qemu-system-x86_64 || true');
-    console.log('🧹 Cleaned up leftover QEMU processes');
+    require("child_process").execSync("pkill -f qemu-system-x86_64 || true");
+    console.log("🧹 Cleaned up leftover QEMU processes");
   } catch {
-    console.warn('⚠️ No QEMU processes found to clean.');
+    console.warn("⚠️ No QEMU processes found to clean.");
   }
 
-  // Mark all nodes as stopped
-  inventory.nodes.forEach((n) => (n.status = 'stopped'));
+  inventory.nodes.forEach((n) => (n.status = "stopped"));
   saveInventory(inventory);
-  console.log('📋 All nodes marked as stopped on backend startup');
+  console.log("📋 All nodes marked as stopped on backend startup");
 };
 
-// =======================================================
-// ✅ STATUS CHECK
-// =======================================================
 exports.isRunning = (nodeName) => {
   try {
     execSync(`pgrep -f "${nodeName}"`);

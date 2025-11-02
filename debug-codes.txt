@@ -49,3 +49,26 @@ exit
 
 # 5. Watch guacd logs
 docker logs -f guacd
+
+
+docker exec -it guac-db mysql -u root -p
+
+USE guacamole_db;
+
+SELECT c.connection_id, c.connection_name, c.protocol, p.parameter_name, p.parameter_value
+FROM guacamole_connection AS c
+LEFT JOIN guacamole_connection_parameter AS p
+ON c.connection_id = p.connection_id
+WHERE c.connection_name = 'router_1';
+
+
+ROuter styarting command :
+qemu-system-x86_64 \
+  -hda /home/gokul/sandbox-labs/backend/overlays/router_1.qcow2 \
+  -m 1024 -enable-kvm \
+  -device e1000,netdev=net0 \
+  -netdev tap,id=net0,ifname=tap-r1g0,script=no,downscript=no \
+  -device e1000,netdev=net1 \
+  -netdev tap,id=net1,ifname=tap-r1g1,script=no,downscript=no \
+  -serial telnet:0.0.0.0:5950,server,nowait \
+  -vnc :1 -daemonize

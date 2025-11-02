@@ -11,3 +11,7 @@
 | :------- | :------------------ | :----------------------------------------------------------- | :---------------------------------------------------- |
 | **POST** | `/nodes/router`     | Create the router overlay (router_1) and add it to inventory | `curl -X POST http://localhost:5000/nodes/router`     |
 | **POST** | `/nodes/router/run` | Start the router VM and create a Guacamole connection        | `curl -X POST http://localhost:5000/nodes/router/run` |
+
+
+curl -X POST http://localhost:5000/nodes/router
+curl -X POST http://localhost:5000/nodes/router/run
