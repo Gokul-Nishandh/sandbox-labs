@@ -3,27 +3,44 @@
     {
       "name": "node_1",
       "image": "/home/gokul/sandbox-labs/backend/overlays/node_1.qcow2",
-      "ip": "192.168.56.11"
+      "ip": "192.168.56.11",
+      "status": "stopped"
     },
     {
       "name": "node_2",
       "image": "/home/gokul/sandbox-labs/backend/overlays/node_2.qcow2",
-      "ip": "192.168.56.12"
+      "ip": "192.168.56.12",
+      "status": "stopped"
     },
     {
       "name": "node_3",
       "image": "/home/gokul/sandbox-labs/backend/overlays/node_3.qcow2",
-      "ip": "192.168.56.13"
+      "ip": "192.168.56.13",
+      "status": "stopped"
     },
     {
       "name": "node_4",
       "image": "/home/gokul/sandbox-labs/backend/overlays/node_4.qcow2",
-      "ip": "192.168.56.14"
+      "ip": "192.168.56.14",
+      "status": "stopped"
     },
     {
-      "name": "node_5",
-      "image": "/home/gokul/sandbox-labs/backend/overlays/node_5.qcow2",
-      "ip": "192.168.56.15"
+      "name": "router_1",
+      "image": "/home/gokul/sandbox-labs/backend/overlays/router_1.qcow2",
+      "ip": "192.168.1.1",
+      "status": "stopped"
+    },
+    {
+      "name": "node_6",
+      "image": "/home/gokul/sandbox-labs/backend/overlays/node_6.qcow2",
+      "ip": "192.168.56.16",
+      "status": "stopped"
+    },
+    {
+      "name": "node_7",
+      "image": "/home/gokul/sandbox-labs/backend/overlays/node_7.qcow2",
+      "ip": "192.168.56.17",
+      "status": "running"
     }
   ]
 }

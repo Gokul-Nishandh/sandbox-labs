@@ -14,8 +14,15 @@ export default function NodeList() {
     setLoading(true);
     try {
       const res = await axios.get(`${API_BASE}/nodes`);
-      const fetchedNodes = res.data;
-      console.log(nodes)
+      let fetchedNodes = res.data;
+
+      // ✅ Always move "router" node to the top if exists
+      fetchedNodes = fetchedNodes.sort((a, b) => {
+        if (a.name.toLowerCase().includes('router')) return -1;
+        if (b.name.toLowerCase().includes('router')) return 1;
+        return 0;
+      });
+
       setNodes(fetchedNodes);
 
       // Initialize timers for new nodes
@@ -58,7 +65,7 @@ export default function NodeList() {
     if (!window.confirm('Are you sure you want to delete all nodes?')) return;
     try {
       await axios.post(`${API_BASE}/nodes/wipeAll`);
-      timerRef.current = {}; // reset timers
+      timerRef.current = {};
       setTimer({});
       await fetchNodes();
     } catch (err) {
@@ -134,7 +141,12 @@ export default function NodeList() {
                     idx % 2 === 0 ? '' : 'bg-gray-50'
                   }`}
                 >
-                  <td className="py-3 px-5 font-medium text-gray-800">{node.name}</td>
+                  <td className="py-3 px-5 font-medium text-gray-800">
+                    {node.name}
+                    {node.name.toLowerCase().includes('router') && (
+                      <span className="ml-2 text-sm text-blue-500 font-semibold">(Router)</span>
+                    )}
+                  </td>
                   <td className="py-3 px-5">
                     <span
                       className={`px-2 py-1 rounded-full text-white text-sm font-semibold ${
@@ -144,19 +156,25 @@ export default function NodeList() {
                       {node.status}
                     </span>
                   </td>
-                  <td className="py-3 px-5 font-mono text-gray-700">{formatTime(timer[node.name] || 0)}</td>
+                  <td className="py-3 px-5 font-mono text-gray-700">
+                    {formatTime(timer[node.name] || 0)}
+                  </td>
                   <td className="py-3 px-5 space-x-2">
                     <button
                       onClick={() => handleAction(node.name, 'run')}
-                      disabled={node.status === 'running'}
+                      // ✅ Router can always be started manually
+                      disabled={
+                        node.name.toLowerCase().includes('router') ? false : node.status === 'running'
+                      }
                       className={`px-3 py-1 rounded text-white transition duration-200 ${
-                        node.status === 'running'
+                        node.status === 'running' && !node.name.toLowerCase().includes('router')
                           ? 'bg-green-300 cursor-not-allowed'
                           : 'bg-green-500 hover:bg-green-600 shadow'
                       }`}
                     >
                       Start
                     </button>
+
                     <button
                       onClick={() => handleAction(node.name, 'stop')}
                       disabled={node.status === 'stopped'}
@@ -168,12 +186,14 @@ export default function NodeList() {
                     >
                       Stop
                     </button>
+
                     <button
                       onClick={() => handleAction(node.name, 'wipe')}
                       className="px-3 py-1 rounded bg-red-500 hover:bg-red-600 text-white transition duration-200 shadow"
                     >
                       Wipe
                     </button>
+
                     <button
                       onClick={() => window.open(node.guacamoleUrl, '_blank')}
                       className="px-3 py-1 rounded bg-blue-500 hover:bg-blue-600 text-white transition duration-200 shadow"

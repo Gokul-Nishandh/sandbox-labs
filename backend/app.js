@@ -1,12 +1,16 @@
 const express = require('express');
 const cors = require('cors');
 const nodeRoutes = require('./routes/nodeRoutes');
+const qemuService = require('./services/qemuService'); // 🧩 import here
 
 const app = express();
 
-// Use CORS with options
+// Mark all nodes as stopped when backend starts
+qemuService.initInventory(); // ✅ this ensures clean startup state
+
+// Use CORS
 app.use(cors({
-  origin: 'http://localhost:3000', // frontend origin
+  origin: 'http://localhost:3000',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));

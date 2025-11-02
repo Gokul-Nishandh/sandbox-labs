@@ -8,5 +8,8 @@ router.post('/:id/run', nodeController.runNode);
 router.post('/:id/stop', nodeController.stopNode);
 router.post('/:id/wipe', nodeController.wipeNode);
 router.post('/wipeAll',nodeController.wipeAllNodes);
+router.post('/router', nodeController.createRouter);
+router.post('/router/run', nodeController.runRouter);
+
 
 module.exports = router;

@@ -1,116 +1,13 @@
-Absolutely, Boss. Assuming your backend is running on **[http://localhost:3000](http://localhost:3000)**, here are the `curl` commands for testing each endpoint.
+| Method   | Endpoint          | Description                                               | Example `curl`                                         |
+| :------- | :---------------- | :-------------------------------------------------------- | :----------------------------------------------------- |
+| **GET**  | `/nodes`          | List all nodes (reads from `inventory.json`)              | `curl -X GET http://localhost:5000/nodes`              |
+| **POST** | `/nodes`          | Create a new node (creates overlay and adds to inventory) | `curl -X POST http://localhost:5000/nodes`             |
+| **POST** | `/nodes/:id/run`  | Start the specified node VM (by name, e.g. `node_1`)      | `curl -X POST http://localhost:5000/nodes/node_1/run`  |
+| **POST** | `/nodes/:id/stop` | Stop the specified node                                   | `curl -X POST http://localhost:5000/nodes/node_1/stop` |
+| **POST** | `/nodes/:id/wipe` | Wipe (reset) the specified node’s overlay                 | `curl -X POST http://localhost:5000/nodes/node_1/wipe` |
+| **POST** | `/nodes/wipeAll`  | Stop and wipe **all** nodes in `inventory.json`           | `curl -X POST http://localhost:5000/nodes/wipeAll`     |
 
----
-
-### **1️⃣ List all nodes**
-
-```bash
-curl -X GET http://localhost:3000/nodes
-```
-
-✅ Response example:
-
-```json
-[
-  {
-    "name": "node_1",
-    "image": "./overlays/node_1.qcow2",
-    "ip": "192.168.56.11",
-    "status": "stopped",
-    "guacamoleUrl": "http://localhost:8080/guacamole/#/client/node_1"
-  }
-]
-```
-
----
-
-### **2️⃣ Create a new node (overlay)**
-
-```bash
-curl -X POST http://localhost:3000/nodes
-```
-
-✅ Response example:
-
-```json
-{
-  "name": "node_3",
-  "image": "./overlays/node_3.qcow2",
-  "ip": "192.168.56.13"
-}
-```
-
-> This automatically adds the overlay and updates `inventory.json`.
-
----
-
-### **3️⃣ Run a node (boot VM)**
-
-```bash
-curl -X POST http://localhost:3000/nodes/node_1/run
-```
-
-✅ Response example:
-
-```json
-{
-  "success": true,
-  "hostSSHPort": 2221,
-  "vncPort": 5901,
-  "guacamoleUrl": "http://localhost:8080/guacamole/#/client/node_1"
-}
-```
-
-> The VM will now be running in the background.
-
----
-
-### **4️⃣ Stop a node**
-
-```bash
-curl -X POST http://localhost:3000/nodes/node_1/stop
-```
-
-✅ Response example:
-
-```json
-{
-  "success": true
-}
-```
-
-> Stops the VM by killing its process.
-
----
-
-### **5️⃣ Wipe a node (delete overlay and recreate)**
-
-```bash
-curl -X POST http://localhost:3000/nodes/node_1/wipe
-```
-
-✅ Response example:
-
-```json
-{
-  "success": true
-}
-```
-
-> The overlay file is deleted and recreated from the base image.
-
----
-
-### **6️⃣ Optional: Check if VNC port is listening**
-
-```bash
-nc -zv 127.0.0.1 5901
-```
-
-> Confirms that the VM’s VNC is up.
-
----
-
-If you want, I can give you a **single shell script** that runs all these curl commands sequentially so you can test your backend in one go. This is very handy while developing.
-
-Do you want me to do that?
+| Method   | Endpoint            | Description                                                  | Example `curl`                                        |
+| :------- | :------------------ | :----------------------------------------------------------- | :---------------------------------------------------- |
+| **POST** | `/nodes/router`     | Create the router overlay (router_1) and add it to inventory | `curl -X POST http://localhost:5000/nodes/router`     |
+| **POST** | `/nodes/router/run` | Start the router VM and create a Guacamole connection        | `curl -X POST http://localhost:5000/nodes/router/run` |
